@@ -11,26 +11,37 @@ app.use(bodyParser.json());
 const PORT = process.env.PORT || 3000;
 
 // ================= NODMAILER SETUP =================
-// Gmail App Password required
+// Directly using your Gmail & App Password (not recommended for public repos)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.GMAIL_USER, // your Gmail
-    pass: process.env.GMAIL_PASS  // Gmail App Password
+    user: 'brightchibondo01@gmail.com', // your Gmail
+    pass: 'fsnmrtzpjckizukb'            // your App Password (no spaces)
   }
 });
 
 // ================= SEND MESSAGE =================
 app.post('/send-message', async (req, res) => {
-  const { email } = req.body;
+  const { email, name } = req.body;
 
-  if (!email) return res.status(400).json({ success: false, error: "Email required" });
+  if (!email) return res.status(400).json({ success: false, error: "Email is required" });
 
   const mailOptions = {
-    from: process.env.GMAIL_USER,
+    from: 'brightchibondo01@gmail.com',
     to: email,
-    subject: 'Codewave Unit Message',
-    text: `Hey ${email},\n\nThis service is developed by Iconic Tech. We will reply to you shortly. Enjoy our service!`
+    subject: 'Welcome to Codewave Unit!',
+    text: `
+Hello ${name || email},
+
+Thank you for joining Codewave Unit! 🚀
+
+This service is developed by Iconic Tech.
+
+✅ Stay updated and follow our channel:
+https://whatsapp.com/channel/0029ValX2Js9RZAVtDgMYj0r
+
+We will reply to you shortly. Enjoy our service!
+`
   };
 
   try {
@@ -38,7 +49,7 @@ app.post('/send-message', async (req, res) => {
     console.log(`Message sent to ${email}`);
     res.json({ success: true, message: "Message sent successfully!" });
   } catch (err) {
-    console.error(err);
+    console.error('Error sending message:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
