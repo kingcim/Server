@@ -1,4 +1,4 @@
-// ================= CODEWAVE UNIT MESSAGE BACKEND =================
+// ================= CODEWAVE UNIT MESSAGE BACKEND WITH VERIFICATION =================
 const express = require('express');
 const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
@@ -11,46 +11,64 @@ app.use(bodyParser.json());
 const PORT = process.env.PORT || 3000;
 
 // ================= NODMAILER SETUP =================
-// Directly using your Gmail & App Password (not recommended for public repos)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: 'brightchibondo01@gmail.com', // your Gmail
-    pass: 'fsnmrtzpjckizukb'            // your App Password (no spaces)
+    user: 'brightchibondo01@gmail.com',   // Your Gmail
+    pass: 'fsnmrtzpjckizukb'              // App Password
   }
 });
 
-// ================= SEND MESSAGE =================
-app.post('/send-message', async (req, res) => {
-  const { email, name } = req.body;
+// ================= IN-MEMORY CODE STORAGE =================
+const verificationCodes = {}; // { email: code }
 
-  if (!email) return res.status(400).json({ success: false, error: "Email is required" });
+// ================= SEND VERIFICATION CODE =================
+app.post('/send-code', async (req, res) => {
+  const { email, name } = req.body;
+  if (!email) return res.status(400).json({ success: false, error: "Email required" });
+
+  // Generate 6-digit code
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  verificationCodes[email] = code;
 
   const mailOptions = {
     from: 'brightchibondo01@gmail.com',
     to: email,
-    subject: 'Welcome to Codewave Unit!',
+    subject: 'Codewave Unit Verification Code',
     text: `
 Hello ${name || email},
 
-Thank you for joining Codewave Unit! 🚀
+Your Codewave Unit verification code is: ${code}
 
 This service is developed by Iconic Tech.
 
 ✅ Stay updated and follow our channel:
 https://whatsapp.com/channel/0029ValX2Js9RZAVtDgMYj0r
 
-We will reply to you shortly. Enjoy our service!
+Use this code to verify your account and access the service.
 `
   };
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log(`Message sent to ${email}`);
-    res.json({ success: true, message: "Message sent successfully!" });
+    console.log(`Verification code sent to ${email}: ${code}`);
+    res.json({ success: true, message: "Verification code sent!" });
   } catch (err) {
-    console.error('Error sending message:', err);
+    console.error(err);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ================= VERIFY CODE =================
+app.post('/verify-code', (req, res) => {
+  const { email, code } = req.body;
+  if (!email || !code) return res.status(400).json({ success: false, error: "Email and code required" });
+
+  if (verificationCodes[email] && verificationCodes[email] === code) {
+    delete verificationCodes[email]; // remove code after verification
+    res.json({ success: true, message: "Code verified!" });
+  } else {
+    res.status(400).json({ success: false, error: "Invalid verification code" });
   }
 });
 
