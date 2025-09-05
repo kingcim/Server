@@ -14,8 +14,8 @@ const PORT = process.env.PORT || 3000;
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: 'brightchibondo01@gmail.com',   // Your Gmail
-    pass: 'fsnmrtzpjckizukb'              // App Password
+    user: 'brightchibondo01@gmail.com',   // Your Gmail for authentication
+    pass: 'fsnmrtzpjckizukb'              // Gmail app password
   }
 });
 
@@ -27,12 +27,12 @@ app.post('/send-code', async (req, res) => {
   const { email, name } = req.body;
   if (!email) return res.status(400).json({ success: false, error: "Email required" });
 
-  // Generate 6-digit code
+  // Generate 6-digit verification code
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   verificationCodes[email] = code;
 
   const mailOptions = {
-    from: 'brightchibondo01@gmail.com',
+    from: '"Codewave Unit" <brightchibondo01@gmail.com>', // Display name
     to: email,
     subject: 'Codewave Unit Verification Code',
     text: `
@@ -54,7 +54,7 @@ Use this code to verify your account and access the service.
     console.log(`Verification code sent to ${email}: ${code}`);
     res.json({ success: true, message: "Verification code sent!" });
   } catch (err) {
-    console.error(err);
+    console.error('Email sending error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -65,7 +65,7 @@ app.post('/verify-code', (req, res) => {
   if (!email || !code) return res.status(400).json({ success: false, error: "Email and code required" });
 
   if (verificationCodes[email] && verificationCodes[email] === code) {
-    delete verificationCodes[email]; // remove code after verification
+    delete verificationCodes[email]; // remove code after successful verification
     res.json({ success: true, message: "Code verified!" });
   } else {
     res.status(400).json({ success: false, error: "Invalid verification code" });
