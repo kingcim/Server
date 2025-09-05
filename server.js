@@ -1,155 +1,141 @@
-// ================= CODEWAVE UNIT FRONTEND JS =================
+// ================= CODEWAVE UNIT BACKEND =================
+const express = require('express');
+const nodemailer = require('nodemailer');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const fs = require('fs');
 
-// ====== CONFIG ======
-const backendURL = "http://localhost:3000"; // Change if hosted
-const whatsappChannel = "https://whatsapp.com/channel/0029ValX2Js9RZAVtDgMYj0r";
-const profileImage = "https://files.catbox.moe/h7fkki.jpg";
-const hiddenVisitLink = "https://codewave-unit.zone.id";
+const app = express();
+app.use(cors());
+app.use(bodyParser.json());
 
-// ====== USER DATA STORAGE ======
-let currentUser = JSON.parse(localStorage.getItem("cwUser")) || null;
+const PORT = process.env.PORT || 3000;
+const ADMIN_PASSWORD = "supersecureadminpass"; // admin password
+const USERS_FILE = './users.json';
 
-// ====== UTILITY FUNCTIONS ======
-function randomGreeting() {
-  const hour = new Date().getHours();
-  if(hour < 12) return "Good Morning";
-  if(hour < 18) return "Good Afternoon";
-  return "Good Evening";
+// Load users from file
+let users = {};
+if(fs.existsSync(USERS_FILE)){
+  users = JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
 }
 
-function showNotification(title, message, copyText) {
-  // Create container
-  const notif = document.createElement("div");
-  notif.className = "cw-notification";
-  notif.innerHTML = `
-    <div class="cw-notif-header"><strong>${title}</strong></div>
-    <div class="cw-notif-body">${message}</div>
-    ${copyText ? '<button class="cw-copy-btn">Copy</button>' : ''}
-  `;
-  document.body.appendChild(notif);
+// Save users to file
+function saveUsers(){
+  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+}
 
-  // Copy button
-  if(copyText){
-    notif.querySelector(".cw-copy-btn").addEventListener("click", () => {
-      navigator.clipboard.writeText(copyText);
-      alert("Copied to clipboard!");
-    });
+// ================= NODMAILER SETUP =================
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: 'brightchibondo01@gmail.com',
+    pass: 'fsnmrtzpjckizukb'
   }
-
-  // Auto remove after 7s
-  setTimeout(() => notif.remove(), 7000);
-}
-
-// ====== LOGIN & PROFILE ======
-function renderProfile() {
-  if(!currentUser) return;
-
-  const profileContainer = document.getElementById("cw-profile");
-  if(!profileContainer) return;
-
-  profileContainer.innerHTML = `
-    <img src="${profileImage}" class="cw-profile-img"/>
-    <h3>${currentUser.name}</h3>
-    <p>${randomGreeting()} ${currentUser.email}</p>
-    <button id="cw-logout">Logout</button>
-    <div class="cw-links">
-      <a href="${whatsappChannel}" target="_blank">
-        <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" class="cw-whatsapp-logo"/>
-        Follow Official Channel
-      </a>
-    </div>
-    <small>Developed by ICONIC TECH. Made with ⏰ for you.</small>
-  `;
-
-  document.getElementById("cw-logout").addEventListener("click", () => {
-    localStorage.removeItem("cwUser");
-    showNotification("Logout", "You have successfully logged out!", null);
-    currentUser = null;
-    renderProfile();
-  });
-}
-
-// ====== VERIFICATION ======
-async function sendCode(email, name) {
-  try {
-    const res = await fetch(`${backendURL}/send-code`, {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({email, name})
-    });
-    const data = await res.json();
-    if(data.success) showNotification("Code Sent", `Verification code sent to ${email}`, null);
-    return data;
-  } catch(e) { console.error(e); }
-}
-
-async function verifyCode(email, code, name) {
-  try {
-    const res = await fetch(`${backendURL}/verify-code`, {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({email, code, name})
-    });
-    const data = await res.json();
-    if(data.success){
-      currentUser = {email, name: name||email};
-      localStorage.setItem("cwUser", JSON.stringify(currentUser));
-      renderProfile();
-      showNotification("Welcome", `${randomGreeting()} ${currentUser.email}`, hiddenVisitLink);
-    } else {
-      showNotification("Error", data.error, null);
-    }
-  } catch(e){ console.error(e); }
-}
-
-// ====== ADMIN INTERACTIONS ======
-async function sendAdminMessage(email, message, adminPass){
-  try{
-    const res = await fetch(`${backendURL}/admin/message`, {
-      method:"POST",
-      headers:{"Content-Type":"application/json","password":adminPass},
-      body: JSON.stringify({email, message})
-    });
-    const data = await res.json();
-    return data;
-  } catch(e){ console.error(e); }
-}
-
-// ====== INITIALIZE ======
-document.addEventListener("DOMContentLoaded", () => {
-  renderProfile();
-
-  // Show greeting if logged in
-  if(currentUser){
-    showNotification("Welcome Back", `${randomGreeting()} ${currentUser.email}`, hiddenVisitLink);
-  }
-
-  // Optional: repeat notification on restart every 30s
-  setInterval(()=>{
-    if(currentUser){
-      showNotification("Reminder", `${randomGreeting()} ${currentUser.email}`, hiddenVisitLink);
-    }
-  }, 30000);
 });
 
-// ====== STYLES ======
-const style = document.createElement("style");
-style.innerHTML = `
-  .cw-notification{
-    position: fixed; top:20px; right:20px; background:#fff; color:#333;
-    padding:15px 20px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.2);
-    z-index:9999; width:300px; font-family:Arial,sans-serif; animation:fadein 0.5s;
+// ================= IN-MEMORY VERIFICATION CODES =================
+const verificationCodes = {};
+
+// ================= SEND VERIFICATION CODE =================
+app.post('/send-code', async (req, res) => {
+  const { email, name } = req.body;
+  if(!email) return res.status(400).json({ success:false, error:"Email required" });
+
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  verificationCodes[email] = code;
+
+  const mailOptions = {
+    from: '"Codewave Unit" <brightchibondo01@gmail.com>',
+    to: email,
+    subject: '🔑 Codewave Unit Verification Code',
+    html: `
+      <div style="font-family:Arial,sans-serif; line-height:1.6; color:#333;">
+        <h2>Hello ${name || "Codewave Unit"}!</h2>
+        <p>Your verification code is:</p>
+        <div style="font-size:28px; font-weight:bold; background:#f0f0f0; padding:15px 25px; border-radius:10px;">${code}</div>
+      </div>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`Verification code sent to ${email}: ${code}`);
+    res.json({ success:true, message:"Verification code sent!" });
+  } catch(err) {
+    console.error('Email sending error:', err);
+    res.status(500).json({ success:false, error:err.message });
   }
-  .cw-notif-header{ font-size:16px; margin-bottom:5px; }
-  .cw-notif-body{ font-size:14px; margin-bottom:10px; }
-  .cw-copy-btn{
-    background:#007BFF; color:#fff; border:none; padding:6px 12px;
-    border-radius:6px; cursor:pointer; font-weight:bold;
+});
+
+// ================= VERIFY CODE =================
+app.post('/verify-code', (req,res)=>{
+  const { email, code, name } = req.body;
+  if(!email || !code) return res.status(400).json({ success:false, error:"Email and code required" });
+
+  if(verificationCodes[email] && verificationCodes[email] === code){
+    delete verificationCodes[email];
+    users[email] = {
+      email,
+      name: name || "Codewave Unit",
+      verified:true,
+      banned:false,
+      lastLogin:new Date().toISOString()
+    };
+    saveUsers();
+    res.json({ success:true, message:"Code verified!" });
+  } else {
+    res.status(400).json({ success:false, error:"Invalid verification code" });
   }
-  .cw-profile-img{ width:80px; height:80px; border-radius:50%; margin-bottom:10px; }
-  #cw-profile{ padding:20px; max-width:320px; background:#f5f5f5; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1); font-family:Arial,sans-serif;}
-  .cw-whatsapp-logo{width:20px; vertical-align:middle; margin-right:6px;}
-  .cw-links a{ display:flex; align-items:center; gap:5px; text-decoration:none; color:#25D366; font-weight:bold; margin-top:10px; }
-  @keyframes fadein{ from{opacity:0; transform:translateY(-20px);} to{opacity:1; transform:translateY(0);} }
-`;
-document.head.appendChild(style);
+});
+
+// ================= ADMIN MIDDLEWARE =================
+function checkAdmin(req,res,next){
+  if(req.headers.password === ADMIN_PASSWORD) return next();
+  res.status(403).json({ success:false, error:'Unauthorized' });
+}
+
+// ================= ADMIN ROUTES =================
+app.get('/admin/users', checkAdmin, (req,res)=>{
+  res.json({ success:true, users: Object.values(users) });
+});
+
+app.post('/admin/message', checkAdmin, (req,res)=>{
+  const { email, message } = req.body;
+  if(users[email]){
+    console.log(`Message sent to ${email}: ${message}`);
+    return res.json({ success:true });
+  }
+  res.status(404).json({ success:false, error:'User not found' });
+});
+
+app.post('/admin/notice', checkAdmin, (req,res)=>{
+  const { email, notice } = req.body;
+  if(users[email]){
+    console.log(`Notice sent to ${email}: ${notice}`);
+    return res.json({ success:true });
+  }
+  res.status(404).json({ success:false, error:'User not found' });
+});
+
+app.post('/admin/ban', checkAdmin, (req,res)=>{
+  const { email } = req.body;
+  if(users[email]){
+    users[email].banned = true;
+    saveUsers();
+    return res.json({ success:true });
+  }
+  res.status(404).json({ success:false, error:'User not found' });
+});
+
+app.delete('/admin/delete', checkAdmin, (req,res)=>{
+  const { email } = req.body;
+  if(users[email]){
+    delete users[email];
+    saveUsers();
+    return res.json({ success:true });
+  }
+  res.status(404).json({ success:false, error:'User not found' });
+});
+
+// ================= START SERVER =================
+app.listen(PORT, ()=>console.log(`Codewave Unit backend running on port ${PORT}`));
