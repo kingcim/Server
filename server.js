@@ -1,6 +1,5 @@
-// ================= CODEWAVE UNIT BACKEND =================
+// ================= CODEWAVE UNIT BACKEND FAKE =================
 const express = require('express');
-const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
@@ -8,41 +7,24 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-const PORT = process.env.PORT || 3000; // Render provides PORT automatically
+const PORT = process.env.PORT || 3000;
 
-// Temporary in-memory storage for verification codes
+// Temporary in-memory storage for codes
 let verificationCodes = {};
-
-// ================= NODMAILER SETUP =================
-// Use Gmail App Password, not your Gmail password
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER, // set in Render dashboard
-    pass: process.env.GMAIL_PASS  // Gmail App Password
-  }
-});
 
 // ================= SEND VERIFICATION CODE =================
 app.post('/send-code', (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ success: false, error: "Email required" });
 
+  // Generate 6-digit code
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   verificationCodes[email] = code;
 
-  const mailOptions = {
-    from: process.env.GMAIL_USER,
-    to: email,
-    subject: 'Codewave Unit Verification Code',
-    text: `Your Codewave Unit verification code is: ${code}`
-  };
+  console.log(`Fake sending code ${code} to ${email} (not real email)`);
 
-  transporter.sendMail(mailOptions, (err, info) => {
-    if (err) return res.status(500).json({ success: false, error: err.message });
-    console.log(`Sent code ${code} to ${email}`);
-    res.json({ success: true });
-  });
+  // Return success immediately (no Gmail needed)
+  res.json({ success: true, message: `Code sent to ${email} (fake)` });
 });
 
 // ================= VERIFY CODE =================
@@ -58,4 +40,4 @@ app.post('/verify-code', (req, res) => {
 });
 
 // ================= START SERVER =================
-app.listen(PORT, () => console.log(`Codewave backend running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Fake Codewave backend running on port ${PORT}`));
