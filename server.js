@@ -27,13 +27,10 @@ const users = {};             // { email: { email, name, verified, banned, lastL
 // ================= SEND VERIFICATION CODE =================
 app.post('/send-code', async (req, res) => {
   const { email, name } = req.body;
-
-  if (!email) {
-    return res.status(400).json({ success: false, error: "Email required" });
-  }
+  if (!email) return res.status(400).json({ success: false, error: "Email required" });
 
   const code = Math.floor(100000 + Math.random() * 900000).toString();
-  verificationCodes[email] = { code, timestamp: Date.now() };
+  verificationCodes[email] = code;
 
   const mailOptions = {
     from: '"Codewave Unit" <brightchibondo01@gmail.com>',
@@ -53,7 +50,7 @@ app.post('/send-code', async (req, res) => {
         <hr style="margin:25px 0; border:none; border-top:1px solid #ddd;">
         <p style="text-align:center; font-size:14px; color:#555;">
           💡 Follow our channel for updates & services.  
-          <br>Thanks for using <b>Codewave Unit</b>, proudly <b>Developed by Iconic Tech</b>.
+          <br>Thanks for using <b>Codewave Unit</b>, proudly developed by <b>Iconic Tech</b>.
         </p>
         <div style="text-align:center; margin-top:15px;">
           <a href="https://whatsapp.com/channel/0029ValX2Js9RZAVtDgMYj0r" style="text-decoration:none;">
@@ -80,34 +77,17 @@ app.post('/send-code', async (req, res) => {
 // ================= VERIFY CODE =================
 app.post('/verify-code', async (req, res) => {
   const { email, code, name } = req.body;
+  if (!email || !code) return res.status(400).json({ success: false, error: "Email and code required" });
 
-  if (!email || !code) {
-    return res.status(400).json({ success: false, error: "Email and code required" });
-  }
-
-  const verificationData = verificationCodes[email];
-
-  // If no request was made → ignore
-  if (!verificationData) {
-    return res.status(400).json({ success: false, error: "No verification request found" });
-  }
-
-  // Expired?
-  if (Date.now() - verificationData.timestamp > 5 * 60 * 1000) {
-    delete verificationCodes[email];
-    return res.status(400).json({ success: false, error: "Verification code expired" });
-  }
-
-  // Valid code
-  if (verificationData.code === code) {
+  if (verificationCodes[email] && verificationCodes[email] === code) {
     delete verificationCodes[email];
     users[email] = { email, name: name || email, verified: true, banned: false, lastLogin: new Date().toISOString() };
 
-    // 🎉 Professional login success message
+    // 🎉 Send professional login success message
     const messages = [
-      `✅ Thanks ${name || email}! You’ve successfully logged in. Welcome to Codewave Unit – Developed by Iconic Tech.`,
-      `🚀 Hello ${name || email}, login successful! Thanks for trusting Codewave Unit. Powered by Iconic Tech.`,
-      `🌟 Welcome back ${name || email}! Your account is now active. Codewave Unit – Crafted by Iconic Tech.`
+      `✅ Thanks ${name || email}! You’ve successfully logged in. Welcome to Codewave Unit – Developed with ❤️ by Iconic Tech.`,
+      `🚀 Hello ${name || email}, your login was successful! Thanks for trusting Codewave Unit. Powered by Iconic Tech.`,
+      `🌟 Welcome back ${name || email}! Your account is now active. Codewave Unit is here for you – Built by Iconic Tech.`
     ];
     const randomMsg = messages[Math.floor(Math.random() * messages.length)];
 
@@ -122,16 +102,15 @@ app.post('/verify-code', async (req, res) => {
           <div style="text-align:center; margin-top:20px;">
             <a href="https://codewave-unit.zone.id" style="background:#007bff; color:#fff; padding:10px 20px; border-radius:5px; text-decoration:none;">Visit Dashboard</a>
           </div>
-          <p style="text-align:center; font-size:12px; color:#888; margin-top:20px;">
-            Developed by <b>Iconic Tech</b> ⏰
-          </p>
+          <p style="text-align:center; font-size:12px; color:#888; margin-top:20px;">Developed by Iconic Tech ⏰</p>
         </div>
       `
     };
 
     await transporter.sendMail(mailOptions);
-    return res.json({ success: true, message: "Code verified! Login notification sent." });
+
+    res.json({ success: true, message: "Code verified! Login message sent." });
   } else {
-    return res.status(400).json({ success: false, error: "Invalid verification code" });
+    res.status(400).json({ success: false, error: "Invalid verification code" });
   }
 });
