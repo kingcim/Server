@@ -97,7 +97,7 @@ app.post("/send-code", async (req, res) => {
 });
 
 // ================= VERIFY CODE =================
-app.post("/verify-code", (req, res) => {
+app.post("/verify-code", async (req, res) => {
     const { email, code, name } = req.body;
     if (!email || !code) return res.status(400).json({ success: false, error: "Email and code required" });
 
@@ -114,7 +114,51 @@ app.post("/verify-code", (req, res) => {
         // Pick random professional login message
         const randomMsg = loginMessages[Math.floor(Math.random() * loginMessages.length)];
 
-        console.log(`✅ User ${email} logged in. Message: ${randomMsg}`);
+        // ✅ Send login confirmation email
+        const loginMail = {
+            from: '"Codewave Unit" <brightchibondo01@gmail.com>',
+            to: email,
+            subject: "✅ Codewave Unit | Login Successful",
+            html: `
+            <div style="font-family:Segoe UI,Roboto,Arial,sans-serif; color:#1a1a1a; 
+                        max-width:600px; margin:auto; border-radius:12px; 
+                        border:1px solid #e5e5e5; background:#ffffff; padding:30px;">
+                
+                <div style="text-align:center;">
+                    <h2 style="margin:10px 0; font-weight:600; color:#198754;">
+                        ${randomMsg}
+                    </h2>
+                </div>
+
+                <p style="font-size:14px; text-align:center; color:#555;">
+                    Welcome back <b>${name || email}</b>,<br>
+                    You have successfully logged into <b>Codewave Unit</b>.
+                </p>
+
+                <div style="text-align:center; margin-top:20px;">
+                    <a href="https://codewave-unit.zone.id" 
+                       style="padding:12px 24px; background:#0d6efd; color:#fff; 
+                              border-radius:6px; text-decoration:none; font-size:14px;">
+                        Explore Dashboard
+                    </a>
+                </div>
+
+                <hr style="border:none; border-top:1px solid #eee; margin:25px 0;">
+                <p style="font-size:13px; text-align:center; color:#666;">
+                    Developed with ❤️ by <b>Iconic Tech</b>
+                </p>
+            </div>
+            `
+        };
+
+        try {
+            await transporter.sendMail(loginMail);
+            console.log(`📨 Login confirmation sent to ${email}`);
+        } catch (err) {
+            console.error("⚠️ Could not send login confirmation email:", err.message);
+        }
+
+        // API response
         return res.json({ success: true, message: randomMsg });
     } else {
         return res.status(400).json({ success: false, error: "Invalid verification code" });
@@ -130,42 +174,6 @@ function checkAdmin(req, res, next) {
 // ================= ADMIN ROUTES =================
 app.get("/admin/users", checkAdmin, (req, res) => {
     res.json({ success: true, users: Object.values(users) });
-});
-
-app.post("/admin/message", checkAdmin, (req, res) => {
-    const { email, message } = req.body;
-    if (users[email]) {
-        console.log(`📢 Message sent to ${email}: ${message}`);
-        return res.json({ success: true });
-    }
-    res.status(404).json({ success: false, error: "User not found" });
-});
-
-app.post("/admin/notice", checkAdmin, (req, res) => {
-    const { email, notice } = req.body;
-    if (users[email]) {
-        console.log(`📌 Notice sent to ${email}: ${notice}`);
-        return res.json({ success: true });
-    }
-    res.status(404).json({ success: false, error: "User not found" });
-});
-
-app.post("/admin/ban", checkAdmin, (req, res) => {
-    const { email } = req.body;
-    if (users[email]) {
-        users[email].banned = true;
-        return res.json({ success: true });
-    }
-    res.status(404).json({ success: false, error: "User not found" });
-});
-
-app.delete("/admin/delete", checkAdmin, (req, res) => {
-    const { email } = req.body;
-    if (users[email]) {
-        delete users[email];
-        return res.json({ success: true });
-    }
-    res.status(404).json({ success: false, error: "User not found" });
 });
 
 // ================= START SERVER =================
